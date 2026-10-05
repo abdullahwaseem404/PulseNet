@@ -1,16 +1,19 @@
 # 🩺 PulseNet — Clinical Knowledge Graph Intelligence Engine
 
-PulseNet is an **AI-powered clinical knowledge graph application** that converts unstructured medical transcripts into a structured network of clinical entities and relationships.
+PulseNet is an **AI-powered clinical knowledge graph application** that transforms unstructured medical transcripts into a structured network of clinical entities and relationships.
 
-The system uses **Google Gemini, LangChain, NetworkX, and PyVis** to extract medical knowledge and provide an interactive interface for exploring relationships between diseases, symptoms, medications, procedures, body parts, and diagnostic tests.
+The system uses **Google Gemini, LangChain, NetworkX, Pandas, Streamlit, and PyVis** to extract clinical knowledge and provide an interactive environment for exploring relationships between diseases, symptoms, medications, procedures, body parts, tests, dosage, severity, and healthcare providers.
 
 ---
 
 ## 🚀 Features
 
 * 📄 Upload medical transcript datasets in CSV format
+
 * 🤖 Extract clinical entities and relationships using **Google Gemini**
+
 * 🧠 Build a dynamic **Clinical Knowledge Graph**
+
 * 🔗 Identify relationships between:
 
   * Diseases
@@ -19,11 +22,21 @@ The system uses **Google Gemini, LangChain, NetworkX, and PyVis** to extract med
   * Procedures
   * Body Parts
   * Medical Tests
+  * Dosage
+  * Severity
+  * Providers
+
 * 💬 Ask clinical questions using natural language
-* 🔍 Generate answers using retrieved knowledge-graph relationships
-* 🕸️ Interactive network visualization using **PyVis**
-* 📊 Explore extracted relationships in a structured data table
-* ⚡ Streamlit-based interactive web interface
+
+* 🔍 Generate responses using retrieved graph relationships
+
+* 🕸️ Interactive clinical network visualization using **PyVis**
+
+* 📊 Explore extracted knowledge in a structured matrix
+
+* ⚡ Fast and interactive **Streamlit** web interface
+
+* 🧾 Inspect graph triples used for generated answers
 
 ---
 
@@ -37,7 +50,7 @@ The system uses **Google Gemini, LangChain, NetworkX, and PyVis** to extract med
                             │
                             ▼
                  ┌──────────────────────┐
-                 │      Pandas          │
+                 │       Pandas         │
                  │   Data Processing    │
                  └──────────┬───────────┘
                             │
@@ -50,7 +63,7 @@ The system uses **Google Gemini, LangChain, NetworkX, and PyVis** to extract med
                             │
                             ▼
                  ┌──────────────────────┐
-                 │   NetworkX Graph     │
+                 │     NetworkX Graph   │
                  │ Nodes + Relationships│
                  └──────────┬───────────┘
                             │
@@ -72,10 +85,16 @@ Clone the repository:
 git clone https://github.com/abdullahwaseem404/PulseNet.git
 ```
 
-Install dependencies:
+Install the required Python dependencies:
 
 ```bash
 pip install -r requirements.txt
+```
+
+Create a `.env` file and add your Gemini API key:
+
+```env
+GEMINI_API_KEY=your_api_key_here
 ```
 
 ---
@@ -88,32 +107,44 @@ Start the Streamlit application:
 streamlit run app.py
 ```
 
-The application will open in your browser.
+The application will open automatically in your browser.
 
 ---
 
 ## 🔬 Example Workflow
 
 ```text
-Upload CSV
-    ↓
-Select number of records
-    ↓
-Construct Knowledge Network
-    ↓
-Gemini extracts clinical entities
-    ↓
-LangChain creates graph relationships
-    ↓
-NetworkX stores the graph
-    ↓
- ┌───────────────┬──────────────────┬─────────────────┐
- │               │                  │                 │
- ▼               ▼                  ▼                 │
-Clinical Q&A   Network Explorer   Knowledge Matrix    │
- │               │                  │                 │
- └───────────────┴──────────────────┴─────────────────┘
+Upload Medical CSV
+        ↓
+Select Records to Process
+        ↓
+Construct Knowledge Graph
+        ↓
+Gemini Extracts Clinical Entities
+        ↓
+LangChain Builds Relationships
+        ↓
+NetworkX Stores the Graph
+        ↓
+ ┌────────────────┬──────────────────┬─────────────────┐
+ │                │                  │                 │
+ ▼                ▼                  ▼                 │
+Clinical Q&A   Network Explorer   Knowledge Matrix   │
+ │                │                  │                 │
+ └────────────────┴──────────────────┴─────────────────┘
 ```
+
+---
+
+## 🧩 Technologies Used
+
+* **Python** — Core programming language
+* **Pandas** — Medical transcript processing
+* **Google Gemini** — Clinical entity and relationship extraction
+* **LangChain** — LLM graph transformation and prompting
+* **NetworkX** — Graph construction and relationship storage
+* **PyVis** — Interactive graph visualization
+* **Streamlit** — Web application interface
 
 ---
 
@@ -121,6 +152,6 @@ Clinical Q&A   Network Explorer   Knowledge Matrix    │
 
 PulseNet is an **educational and research-oriented AI application**.
 
-The generated answers should **not be considered medical advice, diagnosis, or treatment recommendations**. Clinical information should always be verified using qualified healthcare professionals and trusted medical sources.
+Generated outputs should **not be considered medical advice, diagnosis, or treatment recommendations**. Clinical information should always be reviewed and verified by qualified healthcare professionals and trusted medical sources.
 
 ---
