@@ -15,10 +15,14 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 load_dotenv()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-ALLOWED_NODES = ["Disease", "Medication", "Procedure", "Symptom", "BodyPart", "Test"]
+
+ALLOWED_NODES = [
+    "Disease", "Symptom", "Medication", "Procedure", 
+    "BodyPart", "Test", "Dosage", "Severity", "Provider"
+]
 
 if "nx_graph" not in st.session_state:
-    st.session_state.nx_graph = nx.DiGraph()
+    st.session_state.nx_graph = nx.MultiDiGraph()
 
 @st.cache_resource
 def get_llm():
@@ -28,32 +32,43 @@ def get_llm():
         temperature=0
     )
 
-def ingest_data_to_graph(file_path: str, record_limit: int = 100):
+def ingest_data_to_graph(file_path: str, record_limit: int = 3):
     llm = get_llm()
-
     df = pd.read_csv(file_path)
-    records = df['transcription'].dropna().head(record_limit).tolist()
-    documents = [Document(page_content=text) for text in records]
+    
+    text_col = 'transcription' if 'transcription' in df.columns else df.columns[0]
+    
+    records = df[text_col].dropna().head(record_limit).tolist()
+    documents = [
+        Document(page_content=str(text)[:1500], metadata={"source_id": idx}) 
+        for idx, text in enumerate(records)
+    ]
 
     llm_transformer = LLMGraphTransformer(
         llm=llm,
-        allowed_nodes=ALLOWED_NODES
+        allowed_nodes=ALLOWED_NODES,
+        node_properties=["assertion", "temporal_context"]
     )
 
     graph_documents = llm_transformer.convert_to_graph_documents(documents)
 
     for doc in graph_documents:
         for node in doc.nodes:
-            st.session_state.nx_graph.add_node(node.id, type=node.type)
+            st.session_state.nx_graph.add_node(
+                node.id, 
+                type=node.type, 
+                properties=node.properties
+            )
         for rel in doc.relationships:
             st.session_state.nx_graph.add_edge(
                 rel.source.id, 
                 rel.target.id, 
-                relation=rel.type
+                relation=rel.type,
+                properties=rel.properties
             )
 
 st.set_page_config(page_title="PulseNet Intelligence Engine", layout="wide")
-st.title("🩺 PulseNet — Clinical Knowledge Graph Intelligence Engine")
+st.title("🩺 PulseNet — Temporal Clinical GraphRAG & Knowledge Intelligence Engine")
 
 try:
     llm = get_llm()
@@ -62,47 +77,52 @@ except Exception as e:
     st.stop()
 
 with st.sidebar:
-    st.header("⚙️ Data Pipeline")
+    st.header("⚙️ Fast Clinical ETL")
     uploaded_file = st.file_uploader("Upload Medical Transcripts CSV", type=["csv"])
-    limit = st.number_input("Records to process", min_value=1, max_value=5000, value=10)
+    limit = st.number_input("Records to process (Keep low for speed)", min_value=1, max_value=50, value=3)
     
-    if st.button("Construct Knowledge Network"):
+    if st.button("Construct Knowledge Graph"):
         if uploaded_file is not None:
-            with st.spinner("Processing clinical records..."):
+            with st.spinner("Extracting clinical entities quickly..."):
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as tmp_file:
                     tmp_file.write(uploaded_file.getvalue())
                     tmp_path = tmp_file.name
 
-                ingest_data_to_graph(tmp_path, record_limit=limit)
-                st.success(f"Network updated. Nodes: {st.session_state.nx_graph.number_of_nodes()} | Edges: {st.session_state.nx_graph.number_of_edges()}")
+                try:
+                    ingest_data_to_graph(tmp_path, record_limit=limit)
+                    st.success(f"Done! Nodes: {st.session_state.nx_graph.number_of_nodes()} | Edges: {st.session_state.nx_graph.number_of_edges()}")
+                except Exception as ex:
+                    st.error(f"Extraction error: {ex}")
         else:
             st.warning("Please upload a CSV file.")
 
-tab1, tab2, tab3 = st.tabs(["💬 Clinical Intelligence Q&A", "🕸️ Interactive Network Explorer", "🔍 Knowledge Matrix Data"])
+tab1, tab2, tab3 = st.tabs(["💬 Subgraph GraphRAG Q&A", "🕸️ Interactive Clinical Network", "🔍 Provenance & Knowledge Matrix"])
 
 with tab1:
-    st.subheader("Traverse Knowledge Network via Natural Language")
+    st.subheader("GraphRAG Natural Language Clinical Reasoning")
     user_query = st.text_input(
-        "Ask a clinical question:",
+        "Ask a clinical question (e.g., 'What treatments or medications are mentioned?'):",
         key="nl_query"
     )
 
     if st.button("Run Intelligence Search") and user_query:
         if st.session_state.nx_graph.number_of_nodes() == 0:
-            st.error("Knowledge base is empty. Upload data in sidebar first.")
+            st.error("Knowledge base is empty. Upload clinical data in the sidebar first (try setting records to 3).")
         else:
-            with st.spinner("Evaluating relational paths..."):
+            with st.spinner("Analyzing graph relationships..."):
                 try:
-                    triples = []
-                    for u, v, data in st.session_state.nx_graph.edges(data=True):
-                        rel = data.get("relation", "RELATED_TO")
-                        triples.append(f"({u}) -[{rel}]-> ({v})")
+                    graph = st.session_state.nx_graph
+                    relevant_triples = []
                     
-                    context = "\n".join(triples[:300])
+                    for u, v, data in graph.edges(data=True):
+                        rel = data.get("relation", "RELATED_TO")
+                        relevant_triples.append(f"({u}) -[{rel}]-> ({v})")
+                    
+                    context = "\n".join(relevant_triples[:50])
 
                     prompt = ChatPromptTemplate.from_template(
-                        "You are PulseNet, an advanced clinical reasoning system. Synthesize a response based strictly on these verified clinical relationships.\n\n"
-                        "Knowledge Base Context:\n{context}\n\n"
+                        "You are PulseNet, an advanced clinical reasoning system.\n\n"
+                        "Retrieved Graph Context:\n{context}\n\n"
                         "Clinical Query: {question}\n\n"
                         "Synthesis:"
                     )
@@ -110,50 +130,41 @@ with tab1:
                     chain = prompt | llm
                     response = chain.invoke({"context": context, "question": user_query})
 
-                    st.markdown("### Synthesized Clinical Answer")
+                    st.markdown("### Synthesized Clinical Output")
                     st.write(response.content)
 
-                    with st.expander("Retrieved Network Context Triples"):
+                    with st.expander("Inspected Graph Triples"):
                         st.code(context, language="text")
                 except Exception as e:
-                    st.error(f"Execution failure: {e}")
+                    st.error(f"Execution error: {e}")
 
 with tab2:
-    st.subheader("Sub-Network Visualizer")
-    node_limit = st.slider("Max render edges", 10, 200, 40)
-
-    if st.button("Render Visual Network"):
+    st.subheader("Interactive Sub-Network Visualizer")
+    if st.button("Render Network View"):
         if st.session_state.nx_graph.number_of_nodes() == 0:
             st.warning("No data loaded in memory.")
         else:
             try:
-                net = Network(height="550px", width="100%", directed=True)
-
-                edges = list(st.session_state.nx_graph.edges(data=True))[:node_limit]
-                for source, target, data in edges:
+                net = Network(height="500px", width="100%", directed=True, notebook=False)
+                for source, target, data in list(st.session_state.nx_graph.edges(data=True))[:50]:
                     relation = data.get("relation", "RELATED_TO")
-
-                    net.add_node(source, label=source, title=source)
-                    net.add_node(target, label=target, title=target)
+                    net.add_node(source, label=source)
+                    net.add_node(target, label=target)
                     net.add_edge(source, target, title=relation, label=relation)
 
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".html") as tmp_html:
                     net.save_graph(tmp_html.name)
-                    components.html(open(tmp_html.name, 'r').read(), height=570)
+                    components.html(open(tmp_html.name, 'r').read(), height=520)
             except Exception as e:
-                st.error(f"Visualization rendering error: {e}")
+                st.error(f"Visualization error: {e}")
 
 with tab3:
-    st.subheader("Knowledge Graph Relational Edge List")
+    st.subheader("Clinical Knowledge Matrix")
     if st.session_state.nx_graph.number_of_nodes() == 0:
-        st.info("No active graph edges available.")
+        st.info("No active graph records available.")
     else:
-        table_data = []
-        for u, v, data in st.session_state.nx_graph.edges(data=True):
-            table_data.append({
-                "Subject (Source)": u,
-                "Predicate (Relation)": data.get("relation", "RELATED_TO"),
-                "Object (Target)": v
-            })
-        df_edges = pd.DataFrame(table_data)
-        st.dataframe(df_edges, use_container_width=True)
+        table_data = [
+            {"Subject": u, "Predicate": data.get("relation", "RELATED_TO"), "Object": v}
+            for u, v, data in st.session_state.nx_graph.edges(data=True)
+        ]
+        st.dataframe(pd.DataFrame(table_data), use_container_width=True)
